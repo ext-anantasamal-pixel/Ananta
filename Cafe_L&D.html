@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Zepto Cafe Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f4f6f9;
+padding:20px;
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:20px;
+margin-bottom:30px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+box-shadow:0 2px 5px rgba(0,0,0,0.1);
+}
+
+.card h3{
+margin:0;
+font-size:14px;
+color:#555;
+}
+
+.card p{
+font-size:28px;
+margin-top:10px;
+font-weight:bold;
+}
+
+.chartBox{
+background:white;
+padding:20px;
+border-radius:10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Zepto Cafe Metrics</h1>
+
+<div class="cards">
+
+<div class="card">
+<h3>Total Cafes</h3>
+<p id="cafes">0</p>
+</div>
+
+<div class="card">
+<h3>Avg KPT</h3>
+<p id="kpt">0</p>
+</div>
+
+<div class="card">
+<h3>Avg Defect</h3>
+<p id="defect">0%</p>
+</div>
+
+<div class="card">
+<h3>Avg Rating</h3>
+<p id="rating">0</p>
+</div>
+
+</div>
+
+<div class="chartBox">
+
+<canvas id="chart"></canvas>
+
+</div>
+
+<script>
+
+const API="https://script.google.com/macros/s/AKfycbwpcPKJ72FQ5ywQtD6OinUvH2r9g02HQufIBEPaoug_Q7Sxz4IkUGVIke-ZtvcUMhSE/exec";
+
+fetch(API)
+
+.then(res=>res.json())
+
+.then(data=>{
+
+const rows=data.data;
+
+const cafes=new Set(rows.map(r=>r.cafeName));
+
+document.getElementById("cafes").innerText=cafes.size;
+
+let kpt=[],defect=[],rating=[];
+
+rows.forEach(r=>{
+
+if(r.kpt) kpt.push(parseFloat(r.kpt));
+if(r.defect) defect.push(parseFloat(r.defect));
+if(r.rating) rating.push(parseFloat(r.rating));
+
+});
+
+const avg=(arr)=>arr.reduce((a,b)=>a+b,0)/arr.length;
+
+document.getElementById("kpt").innerText=avg(kpt).toFixed(2);
+
+document.getElementById("defect").innerText=avg(defect).toFixed(2)+"%";
+
+document.getElementById("rating").innerText=avg(rating).toFixed(2);
+
+const byDate={};
+
+rows.forEach(r=>{
+
+if(!r.kpt) return;
+
+if(!byDate[r.date]) byDate[r.date]=[];
+
+byDate[r.date].push(parseFloat(r.kpt));
+
+});
+
+const labels=Object.keys(byDate);
+
+const values=labels.map(d=>{
+
+const arr=byDate[d];
+
+return arr.reduce((a,b)=>a+b,0)/arr.length;
+
+});
+
+new Chart(document.getElementById("chart"),{
+
+type:"bar",
+
+data:{
+labels:labels,
+datasets:[{
+label:"KPT Trend",
+data:values
+}]
+}
+
+});
+
+});
+
+</script>
+
+</body>
+
+</html>
