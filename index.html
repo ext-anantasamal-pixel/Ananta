@@ -226,7 +226,6 @@
       <div id="rangeBox" class="rangeBox" role="region" aria-live="polite">
         <h4 id="rangeTitle">
           Range Averages
-          <!-- Toggle: only affects Trainer / Trainer Head -->
           <button id="toggleViewBtn" style="margin-left:8px;font-size:11px;padding:4px 8px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:#f8f8ff;display:none">
             Switch to Café wise
           </button>
@@ -316,16 +315,21 @@ let DB = { dates:[], cafes:[], trainers:[], trainerHeads:[], cafeNames:[], locMe
 let current = { head:'', trainer:'', cafe:'', date:'', query:'', ratingSub:'All', from:'', to:'' };
 let ratingMap = {};
 const ratingsMemo = new Map();
+const rangeMemo = new Map();
+const MAX_RENDER = 60;
 
-// canonical maps (lower -> canonical)
+// canonical maps
 let TRAINER_CANON = new Map();
 let HEAD_CANON = new Map();
 
-const BOTTOM_N = 5;
-let trainerSubsetMode = null;       // 'kpt' | 'defect' | 'rating' | null
-let trainerSubsetKeys = null;
+// optional indexes
+let INDEX_BY_HEAD = new Map();
+let INDEX_BY_TRAINER = new Map();
+let INDEX_BY_CAFE = new Map();
 
-// NEW: range view toggle state (default City wise)
+const BOTTOM_N = 5;
+let trainerSubsetMode = null;
+let trainerSubsetKeys = null;
 let rangeViewMode = 'city';
 
 /* -------- Quotes -------- */
@@ -373,6 +377,37 @@ function formatStamp(d){
   const pad=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
+function memoRange(key, fn){
+  if (rangeMemo.has(key)) return rangeMemo.get(key);
+  const val = fn();
+  rangeMemo.set(key, val);
+  return val;
+}
+function getRowsByHead(head){
+  return INDEX_BY_HEAD.get(lc(head)) || [];
+}
+function getRowsByTrainer(trainer){
+  return INDEX_BY_TRAINER.get(lc(trainer)) || [];
+}
+function getRowsByCafe(cafe){
+  const row = INDEX_BY_CAFE.get(cafe);
+  return row ? [row] : [];
+}
+function buildIndexes(){
+  INDEX_BY_HEAD = new Map();
+  INDEX_BY_TRAINER = new Map();
+  INDEX_BY_CAFE = new Map();
+
+  for (const r of DB.cafes){
+    if (!INDEX_BY_HEAD.has(r._head)) INDEX_BY_HEAD.set(r._head, []);
+    INDEX_BY_HEAD.get(r._head).push(r);
+
+    if (!INDEX_BY_TRAINER.has(r._trainer)) INDEX_BY_TRAINER.set(r._trainer, []);
+    INDEX_BY_TRAINER.get(r._trainer).push(r);
+
+    INDEX_BY_CAFE.set(r.cafe, r);
+  }
+}
 
 /* -------- Single-day metric getter -------- */
 function getMetricValue(row, dateISO, which){
@@ -381,7 +416,7 @@ function getMetricValue(row, dateISO, which){
   if (which === 'kpt'){ const v = m.kpt; return (v===''||v==null||isNaN(v))?null:Number(v); }
   if (which === 'defect'){ const v = m.defect; return (v===''||v==null||isNaN(v))?null:Number(v); }
   if (which === 'rating'){
-    const ov = ratingMap ? ratingMap[row.key] : undefined;  // overlay for café (per day)
+    const ov = ratingMap ? ratingMap[row.key] : undefined;
     const rv = (ov==null ? m.rating : ov);
     return (rv===''||rv==null||isNaN(rv))?null:Number(rv);
   }
@@ -390,7 +425,7 @@ function getMetricValue(row, dateISO, which){
 
 /* -------- SINGLE-DAY summaries -------- */
 function calcTrainerSummary(trainer, dateISO){
-  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(trainer));
+  const rows = getRowsByTrainer(trainer);
   let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
   for (const r of rows){
     const kv = getMetricValue(r, dateISO, 'kpt');    if (kv!=null){ kSum+=kv; kCnt++; }
@@ -415,7 +450,7 @@ function updateTrainerSummary(){
   box.style.display = 'block';
 }
 function computeTrainerSubset(metric){
-  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(current.trainer));
+  const rows = getRowsByTrainer(current.trainer);
   const withVal = rows.map(r => ({ r, v: getMetricValue(r, current.date, metric) })).filter(x => x.v!=null);
   if (metric === 'kpt' || metric === 'defect'){ withVal.sort((a,b)=> b.v - a.v); }
   else { withVal.sort((a,b)=> a.v - b.v); }
@@ -441,7 +476,7 @@ function applySubsetToggle(metric){
 
 /* -------- SINGLE-DAY Head summary -------- */
 function calcHeadSummary(head, dateISO){
-  const rows = DB.cafes.filter(r => lc(r.trainerHead) === lc(head));
+  const rows = getRowsByHead(head);
   let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
   for (const r of rows){
     const kv = getMetricValue(r, dateISO, 'kpt');    if (kv!=null){ kSum+=kv; kCnt++; }
@@ -465,14 +500,12 @@ function updateHeadSummary(){
 /* -------- RANGE HELPERS -------- */
 function datesBetweenInclusive(fromISO, toISO){
   if (!fromISO || !toISO) return [];
-  const ds = (DB.dates||[]).filter(d => d>=fromISO && d<=toISO).sort();
-  return ds;
+  return (DB.dates||[]).filter(d => d>=fromISO && d<=toISO).sort();
 }
 function hasValidRange(){ return !!(current.from && current.to && current.from <= current.to); }
 
-/* Café range avg */
 function rangeAvgCafe(cafe, fromISO, toISO){
-  const row = DB.cafes.find(x => x.cafe === cafe);
+  const row = INDEX_BY_CAFE.get(cafe);
   if (!row || !row.metrics) return {kpt:'', defect:'', rating:'', n:0};
   const days = datesBetweenInclusive(fromISO, toISO);
   let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
@@ -488,7 +521,6 @@ function rangeAvgCafe(cafe, fromISO, toISO){
   return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
 }
 
-/* Trainer (location-based from backend) — CITY wise */
 function rangeAvgTrainer(trainer, fromISO, toISO){
   const trainerLocs = DB.trainerLocs || {};
   const locMetrics  = DB.locMetrics  || {};
@@ -511,9 +543,8 @@ function rangeAvgTrainer(trainer, fromISO, toISO){
   return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
 }
 
-/* Trainer (café-based aggregation) — CAFE wise */
 function rangeAvgTrainerCafeWise(trainer, fromISO, toISO){
-  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(trainer));
+  const rows = getRowsByTrainer(trainer);
   const days = datesBetweenInclusive(fromISO, toISO);
   if (!rows.length || !days.length) return {kpt:'', defect:'', rating:'', n:0};
   let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
@@ -528,7 +559,6 @@ function rangeAvgTrainerCafeWise(trainer, fromISO, toISO){
   return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
 }
 
-/* Trainer Head (location-based) — CITY wise */
 function rangeAvgHead(head, fromISO, toISO){
   const headLocs = DB.headLocs || {};
   const locMetrics = DB.locMetrics || {};
@@ -551,9 +581,8 @@ function rangeAvgHead(head, fromISO, toISO){
   return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
 }
 
-/* Trainer Head (café-based aggregation) — CAFE wise */
 function rangeAvgHeadCafeWise(head, fromISO, toISO){
-  const rows = DB.cafes.filter(r => lc(r.trainerHead) === lc(head));
+  const rows = getRowsByHead(head);
   const days = datesBetweenInclusive(fromISO, toISO);
   if (!rows.length || !days.length) return {kpt:'', defect:'', rating:'', n:0};
   let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
@@ -568,14 +597,12 @@ function rangeAvgHeadCafeWise(head, fromISO, toISO){
   return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
 }
 
-/* Toggle button visibility helper */
 function updateToggleVisibility(){
   const btn = document.getElementById('toggleViewBtn');
   const show = hasValidRange() && !current.cafe && (current.trainer || current.head);
   btn.style.display = show ? 'inline-block' : 'none';
 }
 
-/* Update the Range Averages panel */
 function updateRangeBox(){
   const box = document.getElementById('rangeBox');
   const none = document.getElementById('rangeNone');
@@ -596,26 +623,41 @@ function updateRangeBox(){
   let res=null, label='Range Averages';
 
   if (current.cafe){
-    res = rangeAvgCafe(current.cafe, current.from, current.to);
+    res = memoRange(
+      `cafe|${lc(current.cafe)}|${current.from}|${current.to}`,
+      () => rangeAvgCafe(current.cafe, current.from, current.to)
+    );
     label = `Café Range — ${current.cafe}`;
     toggleBtn.style.display = 'none';
   } else if (current.trainer){
     if (rangeViewMode==='city'){
-      res = rangeAvgTrainer(current.trainer, current.from, current.to);
+      res = memoRange(
+        `trainer-city|${lc(current.trainer)}|${current.from}|${current.to}`,
+        () => rangeAvgTrainer(current.trainer, current.from, current.to)
+      );
       label = `Trainer Range — ${current.trainer} (City wise view)`;
       toggleBtn.textContent = 'Switch to Café wise';
     } else {
-      res = rangeAvgTrainerCafeWise(current.trainer, current.from, current.to);
+      res = memoRange(
+        `trainer-cafe|${lc(current.trainer)}|${current.from}|${current.to}`,
+        () => rangeAvgTrainerCafeWise(current.trainer, current.from, current.to)
+      );
       label = `Trainer Range — ${current.trainer} (Café wise view)`;
       toggleBtn.textContent = 'Switch to City wise';
     }
   } else if (current.head){
     if (rangeViewMode==='city'){
-      res = rangeAvgHead(current.head, current.from, current.to);
+      res = memoRange(
+        `head-city|${lc(current.head)}|${current.from}|${current.to}`,
+        () => rangeAvgHead(current.head, current.from, current.to)
+      );
       label = `Trainer Head Range — ${current.head} (City wise view)`;
       toggleBtn.textContent = 'Switch to Café wise';
     } else {
-      res = rangeAvgHeadCafeWise(current.head, current.from, current.to);
+      res = memoRange(
+        `head-cafe|${lc(current.head)}|${current.from}|${current.to}`,
+        () => rangeAvgHeadCafeWise(current.head, current.from, current.to)
+      );
       label = `Trainer Head Range — ${current.head} (Café wise view)`;
       toggleBtn.textContent = 'Switch to City wise';
     }
@@ -645,8 +687,15 @@ function updateRangeBox(){
 const FOOD_SETS=[["🥐","🍓","🍕"],["🍔","🥗","🍟"],["🍜","🍣","🍤"],["🥯","☕️","🧁"],["🌮","🥑","🌯"],["🍎","🍊","🍇"],["🥙","🍗","🥒"],["🧀","🍞","🍅"],["🥞","🍯","🫐"]];
 let foodTimer=null,lastSetIdx=-1;
 function startFoodSpin(){ changeFood(); foodTimer=setInterval(changeFood,600); }
-function changeFood(){ const orbit=document.getElementById('orbit'); let idx=Math.floor(Math.random()*FOOD_SETS.length); if(idx===lastSetIdx) idx=(idx+1)%FOOD_SETS.length; lastSetIdx=idx; const [a,b,c]=FOOD_SETS[idx]; orbit.innerHTML=`<div class="emoji e1">${a}</div><div class="emoji e2">${b}</div><div class="emoji e3">${c}</div>`; }
-function stopFoodSpin(){ if(foodTimer){clearInterval(changeFood); clearInterval(foodTimer); foodTimer=null;} }
+function changeFood(){
+  const orbit=document.getElementById('orbit');
+  let idx=Math.floor(Math.random()*FOOD_SETS.length);
+  if(idx===lastSetIdx) idx=(idx+1)%FOOD_SETS.length;
+  lastSetIdx=idx;
+  const [a,b,c]=FOOD_SETS[idx];
+  orbit.innerHTML=`<div class="emoji e1">${a}</div><div class="emoji e2">${b}</div><div class="emoji e3">${c}</div>`;
+}
+function stopFoodSpin(){ if(foodTimer){ clearInterval(foodTimer); foodTimer=null; } }
 
 const MIN_SPIN = 90;
 let spinStart = 0;
@@ -656,35 +705,41 @@ function setBusy(on){
   const empty=document.getElementById('empty');
   const overlay=document.getElementById('centerBusy');
   if(on){
-    spinStart=Date.now(); overlay.style.display='flex'; startFoodSpin();
-    ld.style.display='grid'; grid.style.display='none'; empty.style.display='none';
+    spinStart=Date.now();
+    overlay.style.display='flex';
+    startFoodSpin();
+    ld.style.display='grid';
+    grid.style.display='none';
+    empty.style.display='none';
   } else {
     const stay=Math.max(0,MIN_SPIN-(Date.now()-spinStart));
-    setTimeout(()=>{ overlay.style.display='none'; stopFoodSpin(); ld.style.display='none'; }, stay);
+    setTimeout(()=>{
+      overlay.style.display='none';
+      stopFoodSpin();
+      ld.style.display='none';
+    }, stay);
   }
 }
 
-/* Filters */
+/* -------- Filters -------- */
 function populateFilters(){
   TRAINER_CANON = new Map();
+  HEAD_CANON = new Map();
+
   for (const r of DB.cafes){
-    const raw = (r.cityTrainer||'').toString().trim();
-    if (!raw) continue;
-    const key = raw.toLowerCase();
-    if (!TRAINER_CANON.has(key)) TRAINER_CANON.set(key, raw);
+    const tRaw = (r.cityTrainer||'').toString().trim();
+    if (tRaw && !TRAINER_CANON.has(r._trainer)) TRAINER_CANON.set(r._trainer, tRaw);
+
+    const hRaw = (r.trainerHead||'').toString().trim();
+    if (hRaw && !HEAD_CANON.has(r._head)) HEAD_CANON.set(r._head, hRaw);
   }
+
   const trainers = Array.from(TRAINER_CANON.values()).sort((a,b)=>a.localeCompare(b));
+  const heads = Array.from(HEAD_CANON.values()).sort((a,b)=>a.localeCompare(b));
+
   const tSel=document.getElementById('trainerSel');
   tSel.innerHTML='<option value="">All Trainers</option>'+trainers.map(t=>`<option>${t}</option>`).join('');
 
-  HEAD_CANON = new Map();
-  for (const r of DB.cafes){
-    const raw = (r.trainerHead||'').toString().trim();
-    if (!raw) continue;
-    const key = raw.toLowerCase();
-    if (!HEAD_CANON.has(key)) HEAD_CANON.set(key, raw);
-  }
-  const heads = Array.from(HEAD_CANON.values()).sort((a,b)=>a.localeCompare(b));
   const hSel=document.getElementById('headSel');
   hSel.innerHTML='<option value="">All Trainer Heads</option>'+heads.map(h=>`<option>${h}</option>`).join('');
   if (current.head && heads.includes(current.head)) hSel.value = current.head;
@@ -703,21 +758,21 @@ function populateFilters(){
   const toInp = document.getElementById('toDate');
   fromInp.min = minDate; fromInp.max = maxDate;
   toInp.min = minDate;   toInp.max = maxDate;
-
-  // Subcategories will be populated by boot() now.
-  // Ratings map also seeded by boot(), then future changes use fetchRatingsThenRender().
 }
 
 function applyCrossFiltering(){
+  const allRows = DB.cafes || [];
+  if (!allRows.length) return;
+
   const tSel=document.getElementById('trainerSel');
   const cSel=document.getElementById('cafeSel');
   const hSel=document.getElementById('headSel');
 
   if (current.cafe){
-    const row=DB.cafes.find(r=>r.cafe===current.cafe);
+    const row = INDEX_BY_CAFE.get(current.cafe);
     if(row){
-      const tCanon = TRAINER_CANON.get(lc(row.cityTrainer)) || row.cityTrainer || '';
-      const hCanon = HEAD_CANON.get(lc(row.trainerHead)) || row.trainerHead || '';
+      const tCanon = TRAINER_CANON.get(row._trainer) || row.cityTrainer || '';
+      const hCanon = HEAD_CANON.get(row._head) || row.trainerHead || '';
       current.trainer = tCanon;
       current.head    = hCanon;
       if (tSel) tSel.value = tCanon || '';
@@ -725,9 +780,11 @@ function applyCrossFiltering(){
     }
   }
 
-  let base = DB.cafes.slice();
+  let base = allRows;
 
-  if(current.head){ base = base.filter(r=>lc(r.trainerHead)===lc(current.head)); }
+  if(current.head){
+    base = getRowsByHead(current.head);
+  }
 
   const trainersUnder = Array.from(new Set(base.map(r=>r.cityTrainer).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
   if (tSel){
@@ -738,7 +795,10 @@ function applyCrossFiltering(){
   }
 
   let rows = base;
-  if(current.trainer){ rows = rows.filter(r=>lc(r.cityTrainer)===lc(current.trainer)); }
+  if(current.trainer){
+    const tKey = lc(current.trainer);
+    rows = rows.filter(r=>r._trainer===tKey);
+  }
 
   const cafesAvail = Array.from(new Set(rows.map(r=>r.cafe))).sort();
   if (cSel){
@@ -750,13 +810,13 @@ function applyCrossFiltering(){
 
   let head='—', city='—';
   if(current.cafe){
-    const row=DB.cafes.find(r=>r.cafe===current.cafe);
+    const row = INDEX_BY_CAFE.get(current.cafe);
     if(row){ head=row.trainerHead||'—'; city=row.cityTrainer||'—'; }
   }else{
     if(current.head) head=current.head;
     if(current.trainer) city=current.trainer;
     if(!current.head && current.trainer){
-      const heads=new Set(DB.cafes.filter(r=>lc(r.cityTrainer)===lc(current.trainer)).map(r=>r.trainerHead).filter(Boolean));
+      const heads=new Set(getRowsByTrainer(current.trainer).map(r=>r.trainerHead).filter(Boolean));
       if(heads.size===1) head=[...heads][0];
     }
   }
@@ -773,11 +833,15 @@ function fetchRatingsThenRender(useSpinner){
   const memo = ratingsMemo.get(key);
   if (memo) { ratingMap = memo; render(); return; }
   if (useSpinner) setBusy(true);
+
   google.script.run.withSuccessHandler(res=>{
     ratingMap = (res && res.map) ? res.map : {};
     ratingsMemo.set(key, ratingMap);
     render();
-  }).withFailureHandler(_=>{ ratingMap = {}; render(); }).getRatingsByDateAndSubcategory(current.date, current.ratingSub);
+  }).withFailureHandler(_=>{
+    ratingMap = {};
+    render();
+  }).getRatingsByDateAndSubcategory(current.date, current.ratingSub);
 }
 
 function updateClearXs(){
@@ -791,19 +855,28 @@ function updateClearXs(){
   show(document.getElementById('clearRatingBtn'), (current.ratingSub||'All') !== 'All');
 }
 
+/* -------- Render -------- */
 function render(){
-  const grid=document.getElementById('grid');
-  const empty=document.getElementById('empty');
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
 
-  let rows=DB.cafes;
-  if (current.head)    rows = rows.filter(r => lc(r.trainerHead) === lc(current.head));
-  if(current.trainer)  rows = rows.filter(r => lc(r.cityTrainer) === lc(current.trainer));
-  if(current.cafe)     rows = rows.filter(r => r.cafe === current.cafe);
-  if(current.query)    rows = rows.filter(r => r.cafe.toLowerCase().includes(current.query));
+  let rows = DB.cafes || [];
 
-  if (current.trainer && trainerSubsetKeys){ rows = rows.filter(r => trainerSubsetKeys.has(r.key)); }
+  if (current.cafe){
+    rows = getRowsByCafe(current.cafe);
+  } else {
+    if (current.head) rows = getRowsByHead(current.head);
+    if (current.trainer){
+      const tKey = lc(current.trainer);
+      rows = rows.filter(r => r._trainer === tKey);
+    }
+  }
 
-  document.getElementById('countBadge').textContent=`${rows.length} results`;
+  if (current.query) rows = rows.filter(r => r._cafe.includes(current.query));
+
+  if (current.trainer && trainerSubsetKeys){
+    rows = rows.filter(r => trainerSubsetKeys.has(r.key));
+  }
 
   if (trainerSubsetMode){
     const metric = trainerSubsetMode;
@@ -819,46 +892,56 @@ function render(){
     rows.sort((a,b)=>a.cafe.localeCompare(b.cafe));
   }
 
+  const totalRows = rows.length;
+  const visibleRows = rows.slice(0, MAX_RENDER);
+
+  document.getElementById('countBadge').textContent =
+    `${totalRows} results${totalRows > MAX_RENDER ? ` • showing first ${MAX_RENDER}` : ''}`;
+
   updateTrainerSummary();
   updateHeadSummary();
   updateRangeBox();
 
-  // Batch DOM updates with a fragment to reduce reflows.
-  const frag = document.createDocumentFragment();
-  const d=current.date;
-  rows.forEach(r=>{
-    const m=(r.metrics && r.metrics[d]) ? r.metrics[d] : {kpt:'',defect:'',rating:''};
-    const overlay=ratingMap[r.key];
-    const ratingVal=(overlay==null? m.rating : overlay);
-
-    const card=document.createElement('div');
-    card.className='card';
-    card.innerHTML=`
-      <h3>${r.cafe||'—'}</h3>
-      <div class="meta">
-        <div>Head: <strong>${r.trainerHead||'—'}</strong></div>
-        <div>City Trainer: <strong>${r.cityTrainer||'—'}</strong></div>
-        <div>Date: <strong>${ymdToNice(d)}</strong></div>
-      </div>
-      <div class="buckets">
-        <div class="bucket" style="background:var(--sky)"><h4>KPT P80</h4><div class="v">${fmtNum(m.kpt)}</div></div>
-        <div class="bucket" style="background:var(--rose)"><h4>Defect</h4><div class="v">${fmtPct(m.defect)}</div></div>
-        <div class="bucket" style="background:var(--mint)"><h4>Rating</h4><div class="v">${fmtNum(ratingVal)}</div></div>
-      </div>`;
-    frag.appendChild(card);
-  });
-
-  if(!rows.length){
-    grid.style.display='none'; empty.style.display='block'; grid.innerHTML=''; setBusy(false); updateClearXs(); return;
+  if(!visibleRows.length){
+    grid.style.display='none';
+    empty.style.display='block';
+    grid.innerHTML='';
+    setBusy(false);
+    updateClearXs();
+    return;
   }
-  empty.style.display='none'; grid.style.display='grid';
-  grid.innerHTML='';            // clear once
-  grid.appendChild(frag);       // append once
+
+  const d = current.date;
+  const html = visibleRows.map(r=>{
+    const m = (r.metrics && r.metrics[d]) ? r.metrics[d] : {kpt:'',defect:'',rating:''};
+    const overlay = ratingMap[r.key];
+    const ratingVal = (overlay == null ? m.rating : overlay);
+
+    return `
+      <div class="card">
+        <h3>${r.cafe||'—'}</h3>
+        <div class="meta">
+          <div>Head: <strong>${r.trainerHead||'—'}</strong></div>
+          <div>City Trainer: <strong>${r.cityTrainer||'—'}</strong></div>
+          <div>Date: <strong>${ymdToNice(d)}</strong></div>
+        </div>
+        <div class="buckets">
+          <div class="bucket" style="background:var(--sky)"><h4>KPT P80</h4><div class="v">${fmtNum(m.kpt)}</div></div>
+          <div class="bucket" style="background:var(--rose)"><h4>Defect</h4><div class="v">${fmtPct(m.defect)}</div></div>
+          <div class="bucket" style="background:var(--mint)"><h4>Rating</h4><div class="v">${fmtNum(ratingVal)}</div></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  grid.innerHTML = html;
+  empty.style.display='none';
+  grid.style.display='grid';
   setBusy(false);
   updateClearXs();
 }
 
-/* Events */
+/* -------- Events -------- */
 function initEvents(){
   document.getElementById('headSel').addEventListener('change',e=>{
     current.head=e.target.value||'';
@@ -867,28 +950,34 @@ function initEvents(){
   });
 
   document.getElementById('trainerSel').addEventListener('change',e=>{
-    current.trainer=e.target.value||''; setBusy(true);
-    trainerSubsetMode = null; trainerSubsetKeys = null;
+    current.trainer=e.target.value||'';
+    setBusy(true);
+    trainerSubsetMode = null;
+    trainerSubsetKeys = null;
     ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
     requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
   });
 
   document.getElementById('cafeSel').addEventListener('change',e=>{
-    current.cafe=e.target.value||''; setBusy(true);
+    current.cafe=e.target.value||'';
+    setBusy(true);
     requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
   });
 
   document.getElementById('dateSel').addEventListener('change',e=>{
-    current.date=e.target.value||''; fetchRatingsThenRender(true);
+    current.date=e.target.value||'';
+    fetchRatingsThenRender(true);
   });
 
   document.getElementById('ratingSubSel').addEventListener('change',e=>{
-    current.ratingSub=e.target.value||'All'; fetchRatingsThenRender(true);
+    current.ratingSub=e.target.value||'All';
+    fetchRatingsThenRender(true);
   });
 
   document.getElementById('searchInp').addEventListener('input',e=>{
     current.query=(e.target.value||'').trim().toLowerCase();
-    clearTimeout(window.__deb); window.__deb=setTimeout(()=>requestAnimationFrame(render),120);
+    clearTimeout(window.__deb);
+    window.__deb=setTimeout(()=>requestAnimationFrame(render),250);
   });
 
   document.getElementById('fromDate').addEventListener('change',e=>{
@@ -897,6 +986,7 @@ function initEvents(){
     if (current.from){ toInp.min = current.from; }
     updateRangeBox();
   });
+
   document.getElementById('toDate').addEventListener('change',e=>{
     current.to = e.target.value || '';
     const fromInp = document.getElementById('fromDate');
@@ -910,18 +1000,24 @@ function initEvents(){
     setBusy(true);
     requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
   });
+
   document.getElementById('clearTrainerBtn').addEventListener('click', ()=>{
     const tSel=document.getElementById('trainerSel');
     current.trainer=''; tSel.value='';
     setBusy(true);
+    trainerSubsetMode = null;
+    trainerSubsetKeys = null;
+    ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
     requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
   });
+
   document.getElementById('clearCafeBtn').addEventListener('click', ()=>{
     const cSel=document.getElementById('cafeSel');
     current.cafe=''; cSel.value='';
     setBusy(true);
     requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
   });
+
   document.getElementById('clearDateBtn').addEventListener('click', ()=>{
     const ds=[...DB.dates].filter(Boolean).sort().reverse();
     const latest = ds[0] || '';
@@ -930,6 +1026,7 @@ function initEvents(){
     current.date=latest; dSel.value=latest;
     fetchRatingsThenRender(true);
   });
+
   document.getElementById('clearRatingBtn').addEventListener('click', ()=>{
     const rSel=document.getElementById('ratingSubSel');
     current.ratingSub='All'; rSel.value='All';
@@ -943,7 +1040,6 @@ function initEvents(){
   if (b2) b2.addEventListener('click', ()=>applySubsetToggle('defect'));
   if (b3) b3.addEventListener('click', ()=>applySubsetToggle('rating'));
 
-  // Toggle City↔Café for trainer/head range
   document.getElementById('toggleViewBtn').addEventListener('click', ()=>{
     rangeViewMode = (rangeViewMode === 'city') ? 'cafe' : 'city';
     updateRangeBox();
@@ -968,8 +1064,10 @@ function initNewButtons(){
     dSel.value=current.date || (dSel.options[0] && dSel.options[0].value) || '';
     document.getElementById('fromDate').value='';
     document.getElementById('toDate').value='';
-    trainerSubsetMode = null; trainerSubsetKeys = null;
+    trainerSubsetMode = null;
+    trainerSubsetKeys = null;
     rangeViewMode = 'city';
+    rangeMemo.clear();
     ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
     setBusy(true);
     applyCrossFiltering();
@@ -977,7 +1075,7 @@ function initNewButtons(){
   });
 }
 
-/* -------- Boot (single server call) -------- */
+/* -------- Boot -------- */
 function boot(){
   setBusy(true);
   pickAndType();
@@ -985,15 +1083,22 @@ function boot(){
   google.script.run.withSuccessHandler(res=>{
     DB = res.db || { dates:[], cafes:[], trainers:[], trainerHeads:[], cafeNames:[], locMetrics:{}, headLocs:{}, trainerLocs:{} };
 
+    DB.cafes = (DB.cafes || []).map(r => ({
+      ...r,
+      _cafe: lc(r.cafe),
+      _trainer: lc(r.cityTrainer),
+      _head: lc(r.trainerHead)
+    }));
+
+    buildIndexes();
+
     const ds = (DB.dates||[]).filter(Boolean).sort().reverse();
     current.date = res.defaultDate || ds[0] || '';
 
-    // Populate rating subcategories from boot payload (no extra call)
     const rSel = document.getElementById('ratingSubSel');
     rSel.innerHTML = (res.subcats||['All']).map(s => `<option ${s==='All'?'selected':''}>${s}</option>`).join('');
     current.ratingSub = 'All';
 
-    // Seed ratings cache for the default date so first render doesn't call again
     if (res.ratings && res.ratings.map){
       ratingMap = res.ratings.map;
       ratingsMemo.set(`${current.date}|All`, ratingMap);
@@ -1003,17 +1108,22 @@ function boot(){
     applyCrossFiltering();
     updateClearXs();
     updateTrainerSummary();
-    requestAnimationFrame(render); // first render & hide spinner
+    requestAnimationFrame(render);
   }).withFailureHandler(err=>{
-    const ld=document.getElementById('loader'); ld.style.display='grid';
+    const ld=document.getElementById('loader');
+    ld.style.display='grid';
     ld.innerHTML=`<div class="sk" style="grid-column:span 3;display:flex;align-items:center;justify-content:center;background:none;box-shadow:none;color:#b00">
       Error: ${err.message}
     </div>`;
     setBusy(false);
-  }).bootPayload(); // ✅ ONE call only
+  }).bootPayload();
 }
 
-window.onload=()=>{ initEvents(); initNewButtons(); boot(); };
+window.onload=()=>{
+  initEvents();
+  initNewButtons();
+  boot();
+};
 </script>
 </body>
 </html>
