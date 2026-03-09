@@ -1,164 +1,1019 @@
 <!DOCTYPE html>
 <html>
-
 <head>
-
-<title>Zepto Cafe Dashboard</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zepto Cafe L&D Metrics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  :root{
+    --bg:#f9fbff; --card:#ffffff; --ink:#1f2430; --muted:#6b7380;
+    --pri:#5b2cff; --pri-2:#9b7bff; --ring:0 8px 30px rgba(91,64,255,.10); --ring-2:0 10px 28px rgba(15,23,42,.06);
+    --mint:#e9f9f3; --rose:#ffe9ef; --sky:#edf1ff;
+    --border:#d7dcf0;
+    --border-focus:#5b2cff;
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  *{box-sizing:border-box}
+  body{font-family:'Poppins',sans-serif;background:var(--bg);margin:0;padding:0;color:var(--ink)}
+  .wrap{max-width:min(92vw,1600px);margin:0 auto;padding:24px}
+  @media (min-aspect-ratio:16/9){ .wrap{max-width:min(90vw,1600px)} }
 
-body{
-font-family:Arial;
-background:#f4f6f9;
-padding:20px;
-}
+  .topbar{
+    position:sticky; top:0; z-index:1000;
+    display:flex; align-items:center; justify-content:center; gap:12px;
+    padding:14px 16px; background:rgba(249,251,255,.92);
+    backdrop-filter:saturate(1.1) blur(6px);
+    box-shadow:0 6px 20px rgba(15,23,42,.06);
+  }
+  .topbar:after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:3px;
+    background:linear-gradient(90deg,transparent,var(--pri),var(--pri-2),transparent); opacity:.65;
+  }
+  .logo{width:44px;height:44px;border-radius:12px;background:#fff url('https://3mbco.com/wp-content/uploads/2025/01/Zepto-Cafe-768x768.png') center/cover no-repeat;box-shadow:var(--ring-2)}
+  .title{font-size:30px;font-weight:800;letter-spacing:.2px;text-shadow:0 2px 12px rgba(91,44,255,.12)}
+  .title span{color:var(--pri)}
 
-.cards{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:20px;
-margin-bottom:30px;
-}
+  .panel{background:var(--card);border-radius:16px;box-shadow:var(--ring-2);padding:16px 16px 10px;margin-top:16px}
+  .controls{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+  .cell{grid-column:span 3}
+  .cell.wide{grid-column:span 6}
 
-.card{
-background:white;
-padding:20px;
-border-radius:10px;
-box-shadow:0 2px 5px rgba(0,0,0,0.1);
-}
+  label{font-size:12px;color:#2b2f3a;font-weight:600;display:block;margin:6px 0;letter-spacing:.15px}
 
-.card h3{
-margin:0;
-font-size:14px;
-color:#555;
-}
+  select,input{
+    width:100%;
+    padding:12px 14px;
+    border-radius:12px;
+    border:2px solid var(--border);
+    background:#fff;
+    font-size:14px; outline:none
+  }
+  select:focus,input:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(91,44,255,.12)}
+  input::placeholder{color:#b5bac7}
 
-.card p{
-font-size:28px;
-margin-top:10px;
-font-weight:bold;
-}
+  .selectWrap{position:relative}
+  .selectWrap select{width:100%;padding-right:64px}
+  .clearX{
+    position:absolute; right:34px; top:50%; transform:translateY(-50%);
+    width:26px; height:26px; border-radius:50%;
+    background:#f5f6fb; border:2px solid var(--border); cursor:pointer; display:none;
+    line-height:22px; font-size:16px; font-weight:700; color:#7a8294;
+  }
+  .clearX:hover{background:#eef0fb}
 
-.chartBox{
-background:white;
-padding:20px;
-border-radius:10px;
-}
+  .quoteRow{margin:10px 0 2px;min-height:56px;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .quoteChip{position:relative;display:inline-flex;align-items:center;background:linear-gradient(90deg,#fff,#f6f2ff 40%,#eef3ff 100%);border:1px solid #eceaf8;color:#2b2f3a;padding:12px 18px;border-radius:16px;font-weight:700;box-shadow:var(--ring-2)}
+  .typed{white-space:nowrap;max-width:48vw;overflow:hidden;text-overflow:ellipsis}
+  .caret{width:2px;height:18px;margin-left:8px;background:#6b6f7d;animation:blink 1s steps(1) infinite;border-radius:2px}
+  @keyframes blink{50%{opacity:0}}
+  .shine{content:"";position:absolute;inset:0;background:linear-gradient(120deg,transparent 0%,rgba(255,255,255,.65) 15%,transparent 30%);transform:translateX(-120%);animation:shine 2.8s ease-in-out 1s infinite}
+  @keyframes shine{0%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+  .sparkle{font-size:14px;margin-left:10px;filter:drop-shadow(0 2px 6px rgba(255,200,0,.5));animation:float 2.6s ease-in-out infinite}
+  @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-3px)}100%{transform:translateY(0)}}
 
+  .rangeBox{
+    display:none;
+    background:#fff;border:1px solid #eef0fb;border-radius:16px;box-shadow:var(--ring-2);
+    padding:12px 14px; min-width:380px;
+  }
+  .rangeBox h4{margin:0 0 8px;font-size:14px}
+  .rangeGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .rangeItem{background:#f7f8ff;border:1px solid #eef0fb;border-radius:12px;padding:10px;text-align:center}
+  .rangeItem h5{margin:0 0 6px;font-size:12px;color:#556}
+  .rangeVal{font-size:20px;font-weight:800}
+  .rangeNone{font-size:12px;color:#798096}
+
+  .pills{display:flex;flex-wrap:wrap;gap:10px;margin:8px 2px 2px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;background:#f3f6ff;color:#344}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--pri)}
+
+  .actions{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; margin:12px 2px 2px;
+  }
+  .actions .left{display:flex; gap:10px; flex-wrap:wrap}
+  .btn{
+    appearance:none; border:2px solid var(--border); background:#fff; color:#1f2430;
+    padding:10px 14px; border-radius:999px; font-size:13px; font-weight:600;
+    box-shadow:0 2px 10px rgba(15,23,42,.06); cursor:pointer;
+  }
+  .btn:hover{box-shadow:0 4px 14px rgba(15,23,42,.10)}
+  .btn:active{transform:translateY(1px)}
+  .stamp{font-size:12px; color:#6b7380}
+
+  .trainerSum{
+    margin:10px 2px 0; padding:12px; border:1px solid #eef0fb; border-radius:14px;
+    background:#fff; box-shadow:var(--ring-2);
+  }
+  .trainerSum .row{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+  .trainerSum .title{font-size:14px; font-weight:700}
+  .trainerSum .metrics{display:flex; gap:14px; flex-wrap:wrap}
+  .trainerSum .m{background:#f8f9ff; border:1px solid #eef0fb; border-radius:12px; padding:8px 12px; display:flex; gap:8px; align-items:baseline}
+  .trainerSum .m span{font-size:11px; color:#667085}
+  .trainerSum .m strong{font-size:18px}
+  .actionsSm{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap}
+  .chipbtn{
+    appearance:none; border:1px solid #e6e9f2; background:#fff; color:#1f2430;
+    padding:6px 10px; border-radius:999px; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .chipbtn:hover{box-shadow:0 2px 10px rgba(15,23,42,.08)}
+  .chipbtn.active{background:#f2efff; border-color:#dcd6ff}
+
+  .loader{display:none;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+  .sk{height:56px;border-radius:14px;background:linear-gradient(90deg,#f0f2f7 25%,#f7faff 37%,#eef1f7 63%);background-size:400% 100%;animation:sh 900ms infinite;box-shadow:var(--ring-2)}
+  @keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+
+  .grid{display:none;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:10px}
+  .card{background:var(--card);border-radius:16px;box-shadow:var(--ring);padding:14px 14px 12px}
+  .card h3{margin:2px 0 4px;font-size:16px}
+  .meta{display:flex;gap:14px;flex-wrap:wrap;color:#596073;font-size:12px;margin-bottom:10px}
+  .buckets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .bucket{background:#f7f8ff;border:1px solid #eef0fb;border-radius:14px;padding:12px;text-align:center}
+  .bucket h4{margin:0 0 6px;font-size:12px;color:#556}
+  .v{font-size:22px;font-weight:700}
+  .empty{display:none;padding:18px;text-align:center;color:#798096}
+
+  @media (max-width:1280px){ .grid{grid-template-columns:repeat(3,1fr)} .cell{grid-column:span 4} .cell.wide{grid-column:span 8} .rangeBox{min-width:0;width:100%} }
+  @media (max-width:980px){ .grid{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:680px){
+    .controls{grid-template-columns:1fr}
+    .cell,.cell.wide{grid-column:span 1}
+    .grid{grid-template-columns:1fr}
+    .quoteRow{flex-direction:column;align-items:flex-start}
+    .rangeBox{width:100%}
+    .typed{max-width:80vw}
+  }
+
+  .centerBusy{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);backdrop-filter:blur(2px);z-index:2000}
+  .centerBusy .box{background:#fff;border:1px solid #edf0f6;box-shadow:0 10px 28px rgba(31,36,48,.12);border-radius:16px;padding:18px 22px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .foodSpinner{position:relative;width:80px;height:80px}
+  .foodSpinner .plate{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff 0%,#fff 60%,#f3f5fb 61%,#f3f5fb 72%,#fff 73%);border:2px solid #e5e9f5;box-shadow:inset 0 4px 10px rgba(31,36,48,.08)}
+  .orbit{position:absolute;inset:0;animation:spin .85s linear infinite;transform-origin:50% 50%}
+  .emoji{position:absolute;top:50%;left:50%;font-size:26px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15));transform-origin:0 0}
+  .e1{transform:rotate(0deg) translate(34px) rotate(0deg)}
+  .e2{transform:rotate(120deg) translate(34px) rotate(-120deg)}
+  .e3{transform:rotate(240deg) translate(34px) rotate(-240deg)}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
-
 </head>
-
 <body>
-
-<h1>Zepto Cafe Metrics</h1>
-
-<div class="cards">
-
-<div class="card">
-<h3>Total Cafes</h3>
-<p id="cafes">0</p>
+<div class="topbar">
+  <div class="logo" aria-hidden="true"></div>
+  <div class="title">Zepto Cafe <span>L&amp;D Metrics</span></div>
 </div>
 
-<div class="card">
-<h3>Avg KPT</h3>
-<p id="kpt">0</p>
-</div>
+<div class="wrap">
+  <div class="panel">
+    <div class="controls">
+      <div class="cell">
+        <label>Trainer Head</label>
+        <div class="selectWrap">
+          <select id="headSel"><option value="">All Trainer Heads</option></select>
+          <button id="clearHeadBtn" class="clearX" title="Clear trainer head" aria-label="Clear trainer head">&times;</button>
+        </div>
+      </div>
 
-<div class="card">
-<h3>Avg Defect</h3>
-<p id="defect">0%</p>
-</div>
+      <div class="cell">
+        <label>Trainer (City Trainer)</label>
+        <div class="selectWrap">
+          <select id="trainerSel"><option value="">All Trainers</option></select>
+          <button id="clearTrainerBtn" class="clearX" title="Clear trainer" aria-label="Clear trainer">&times;</button>
+        </div>
+      </div>
 
-<div class="card">
-<h3>Avg Rating</h3>
-<p id="rating">0</p>
-</div>
+      <div class="cell">
+        <label>Cafe</label>
+        <div class="selectWrap">
+          <select id="cafeSel"><option value="">All Cafes</option></select>
+          <button id="clearCafeBtn" class="clearX" title="Clear cafe" aria-label="Clear cafe">&times;</button>
+        </div>
+      </div>
 
-</div>
+      <div class="cell">
+        <label>Date</label>
+        <div class="selectWrap">
+          <select id="dateSel"></select>
+          <button id="clearDateBtn" class="clearX" title="Reset to latest date" aria-label="Reset date">&times;</button>
+        </div>
+      </div>
 
-<div class="chartBox">
+      <div class="cell">
+        <label>From Date</label>
+        <input type="date" id="fromDate">
+      </div>
+      <div class="cell">
+        <label>To Date</label>
+        <input type="date" id="toDate">
+      </div>
 
-<canvas id="chart"></canvas>
+      <div class="cell">
+        <label>Rating Subcategory</label>
+        <div class="selectWrap">
+          <select id="ratingSubSel"><option value="All">All</option></select>
+          <button id="clearRatingBtn" class="clearX" title="Clear subcategory" aria-label="Clear subcategory">&times;</button>
+        </div>
+      </div>
 
+      <div class="cell wide">
+        <label>Search Cafe</label>
+        <input id="searchInp" type="text" placeholder="Type to filter cafes…">
+      </div>
+    </div>
+
+    <div class="quoteRow">
+      <div id="rangeBox" class="rangeBox" role="region" aria-live="polite">
+        <h4 id="rangeTitle">
+          Range Averages
+          <!-- Toggle: only affects Trainer / Trainer Head -->
+          <button id="toggleViewBtn" style="margin-left:8px;font-size:11px;padding:4px 8px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:#f8f8ff;display:none">
+            Switch to Café wise
+          </button>
+        </h4>
+        <div id="rangeContent" class="rangeGrid">
+          <div class="rangeItem"><h5>KPT P80</h5><div id="rKpt" class="rangeVal">—</div></div>
+          <div class="rangeItem"><h5>Defect</h5><div id="rDef" class="rangeVal">—</div></div>
+          <div class="rangeItem"><h5>Rating</h5><div id="rRat" class="rangeVal">—</div></div>
+        </div>
+        <div id="rangeNone" class="rangeNone" style="display:none">Select a valid date range, then pick a Café or Trainer or Trainer Head.</div>
+      </div>
+
+      <div class="quoteChip">
+        <span id="typed" class="typed">Loading…</span>
+        <span id="caret" class="caret"></span>
+        <span class="shine"></span>
+        <span class="sparkle">✨</span>
+      </div>
+    </div>
+
+    <div class="pills">
+      <span class="pill"><span class="dot"></span><span id="selHead">Trainer Head: —</span></span>
+      <span class="pill" style="background:#eaf9ff;color:#234">City Trainer: <span id="selCity" style="margin-left:6px">—</span></span>
+      <span class="pill" style="background:#fef3ff;color:#234"><span id="countBadge">0 results</span></span>
+    </div>
+
+    <div class="actions">
+      <div class="left">
+        <button id="resetBtn" class="btn">Reset Filters</button>
+      </div>
+      <div class="right">
+        <span class="stamp" id="dataStamp" title="Client load time">Loaded at —</span>
+      </div>
+    </div>
+
+    <div id="trainerSummary" class="trainerSum" style="display:none">
+      <div class="row">
+        <div class="title">Trainer Avg — <strong id="trainerName">—</strong></div>
+        <div class="metrics">
+          <div class="m"><span>KPT</span><strong id="tAvgKpt">—</strong></div>
+          <div class="m"><span>Defect</span><strong id="tAvgDef">—</strong></div>
+          <div class="m"><span>Rating</span><strong id="tAvgRat">—</strong></div>
+        </div>
+      </div>
+      <div class="actionsSm">
+        <button class="chipbtn" id="btnBottomKPT">High KPT</button>
+        <button class="chipbtn" id="btnHighDefect">High Defect</button>
+        <button class="chipbtn" id="btnBottomRating">Bottom Rating</button>
+      </div>
+    </div>
+
+    <div id="headSummary" class="trainerSum" style="display:none">
+      <div class="row">
+        <div class="title">Trainer Head Avg — <strong id="headName">—</strong></div>
+        <div class="metrics">
+          <div class="m"><span>KPT</span><strong id="hAvgKpt">—</strong></div>
+          <div class="m"><span>Defect</span><strong id="hAvgDef">—</strong></div>
+          <div class="m"><span>Rating</span><strong id="hAvgRat">—</strong></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="loader" class="loader"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="empty">No rows for the current filter.</div>
+
+  <div id="centerBusy" class="centerBusy" aria-live="polite" aria-busy="true">
+    <div class="box">
+      <div class="foodSpinner" aria-hidden="true">
+        <div class="plate"></div>
+        <div class="orbit" id="orbit">
+          <div class="emoji e1">🥐</div>
+          <div class="emoji e2">🍓</div>
+          <div class="emoji e3">🍕</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
+/* -------- State -------- */
+let DB = { dates:[], cafes:[], trainers:[], trainerHeads:[], cafeNames:[], locMetrics:{}, headLocs:{}, trainerLocs:{} };
+let current = { head:'', trainer:'', cafe:'', date:'', query:'', ratingSub:'All', from:'', to:'' };
+let ratingMap = {};
+const ratingsMemo = new Map();
 
-const API="https://script.google.com/macros/s/AKfycbwpcPKJ72FQ5ywQtD6OinUvH2r9g02HQufIBEPaoug_Q7Sxz4IkUGVIke-ZtvcUMhSE/exec";
+// canonical maps (lower -> canonical)
+let TRAINER_CANON = new Map();
+let HEAD_CANON = new Map();
 
-fetch(API)
+const BOTTOM_N = 5;
+let trainerSubsetMode = null;       // 'kpt' | 'defect' | 'rating' | null
+let trainerSubsetKeys = null;
 
-.then(res=>res.json())
+// NEW: range view toggle state (default City wise)
+let rangeViewMode = 'city';
 
-.then(data=>{
-
-const rows=data.data;
-
-const cafes=new Set(rows.map(r=>r.cafeName));
-
-document.getElementById("cafes").innerText=cafes.size;
-
-let kpt=[],defect=[],rating=[];
-
-rows.forEach(r=>{
-
-if(r.kpt) kpt.push(parseFloat(r.kpt));
-if(r.defect) defect.push(parseFloat(r.defect));
-if(r.rating) rating.push(parseFloat(r.rating));
-
-});
-
-const avg=(arr)=>arr.reduce((a,b)=>a+b,0)/arr.length;
-
-document.getElementById("kpt").innerText=avg(kpt).toFixed(2);
-
-document.getElementById("defect").innerText=avg(defect).toFixed(2)+"%";
-
-document.getElementById("rating").innerText=avg(rating).toFixed(2);
-
-const byDate={};
-
-rows.forEach(r=>{
-
-if(!r.kpt) return;
-
-if(!byDate[r.date]) byDate[r.date]=[];
-
-byDate[r.date].push(parseFloat(r.kpt));
-
-});
-
-const labels=Object.keys(byDate);
-
-const values=labels.map(d=>{
-
-const arr=byDate[d];
-
-return arr.reduce((a,b)=>a+b,0)/arr.length;
-
-});
-
-new Chart(document.getElementById("chart"),{
-
-type:"bar",
-
-data:{
-labels:labels,
-datasets:[{
-label:"KPT Trend",
-data:values
-}]
+/* -------- Quotes -------- */
+const QUOTES = [
+  "Fresh metrics, same great aroma.",
+  "Today’s dashboard, straight from the cafés.",
+  "One place for KPT, defects, and ratings.",
+  "Cafés up front. Numbers behind the bar.",
+  "Clean, current, café by café.",
+  "Simple view of what matters today.",
+  "Filter by trainer, browse by café.",
+  "Pick a date. See the floor.",
+  "From store to screen: the daily read.",
+  "Less noise. More café clarity.",
+  "The shift at a glance.",
+  "Your cafés, neatly summarized.",
+  "Brew better days—one café, one metric at a time.",
+  "Training in action: measure • learn • improve."
+];
+function typeQuote(text){
+  const typed=document.getElementById('typed');
+  const caret=document.getElementById('caret');
+  typed.textContent=""; caret.style.display='inline-block';
+  let i=0; (function step(){ if(i<text.length){ typed.textContent+=text[i++]; setTimeout(step, 16); } else { setTimeout(()=>caret.style.display='none',900);} })();
+}
+function pickAndType(){
+  const last=Number(localStorage.getItem('lastQuoteIdx')||-1);
+  let idx=Math.floor(Math.random()*QUOTES.length);
+  if(idx===last) idx=(idx+1)%QUOTES.length;
+  localStorage.setItem('lastQuoteIdx',String(idx));
+  typeQuote(QUOTES[idx]);
 }
 
-});
+/* -------- Helpers -------- */
+const lc = s => (s||'').toString().replace(/\u00A0/g,' ').trim().toLowerCase();
+function fmtNum(v){ return (v===''||v==null||isNaN(v))?'—':Number(v).toFixed(2).replace(/\.00$/,''); }
+function fmtPct(v){ return (v===''||v==null||isNaN(v))?'—':(Number(v)*100).toFixed(2)+'%'; }
+function ymdToNice(s){
+  if(!s) return '—';
+  const [y,m,d]=s.split('-').map(Number);
+  const M=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d} ${M[m-1]} ${y}`;
+}
+function formatStamp(d){
+  const pad=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
-});
+/* -------- Single-day metric getter -------- */
+function getMetricValue(row, dateISO, which){
+  const m = (row.metrics && row.metrics[dateISO]) ? row.metrics[dateISO] : null;
+  if (!m) return null;
+  if (which === 'kpt'){ const v = m.kpt; return (v===''||v==null||isNaN(v))?null:Number(v); }
+  if (which === 'defect'){ const v = m.defect; return (v===''||v==null||isNaN(v))?null:Number(v); }
+  if (which === 'rating'){
+    const ov = ratingMap ? ratingMap[row.key] : undefined;  // overlay for café (per day)
+    const rv = (ov==null ? m.rating : ov);
+    return (rv===''||rv==null||isNaN(rv))?null:Number(rv);
+  }
+  return null;
+}
 
+/* -------- SINGLE-DAY summaries -------- */
+function calcTrainerSummary(trainer, dateISO){
+  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(trainer));
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const r of rows){
+    const kv = getMetricValue(r, dateISO, 'kpt');    if (kv!=null){ kSum+=kv; kCnt++; }
+    const dv = getMetricValue(r, dateISO, 'defect'); if (dv!=null){ dSum+=dv; dCnt++; }
+    const rv = getMetricValue(r, dateISO, 'rating'); if (rv!=null){ rSum+=rv; rCnt++; }
+  }
+  return { kpt: kCnt? kSum/kCnt : '', defect: dCnt? dSum/dCnt : '', rating: rCnt? rSum/rCnt : '' };
+}
+function updateTrainerSummary(){
+  const box = document.getElementById('trainerSummary');
+  if (!current.trainer){
+    box.style.display='none';
+    trainerSubsetMode = null; trainerSubsetKeys = null;
+    ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
+    return;
+  }
+  document.getElementById('trainerName').textContent = current.trainer;
+  const avg = calcTrainerSummary(current.trainer, current.date);
+  document.getElementById('tAvgKpt').textContent = fmtNum(avg.kpt);
+  document.getElementById('tAvgDef').textContent = fmtPct(avg.defect);
+  document.getElementById('tAvgRat').textContent = fmtNum(avg.rating);
+  box.style.display = 'block';
+}
+function computeTrainerSubset(metric){
+  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(current.trainer));
+  const withVal = rows.map(r => ({ r, v: getMetricValue(r, current.date, metric) })).filter(x => x.v!=null);
+  if (metric === 'kpt' || metric === 'defect'){ withVal.sort((a,b)=> b.v - a.v); }
+  else { withVal.sort((a,b)=> a.v - b.v); }
+  const pick = withVal.slice(0, BOTTOM_N).map(x => x.r.key);
+  return new Set(pick);
+}
+function applySubsetToggle(metric){
+  if (!current.trainer) return;
+  const btnIds = { kpt:'btnBottomKPT', defect:'btnHighDefect', rating:'btnBottomRating' };
+  if (trainerSubsetMode === metric){
+    trainerSubsetMode = null; trainerSubsetKeys = null;
+    document.getElementById(btnIds[metric]).classList.remove('active');
+    render(); return;
+  }
+  trainerSubsetMode = metric;
+  trainerSubsetKeys = computeTrainerSubset(metric);
+  ['kpt','defect','rating'].forEach(m=>{
+    const el=document.getElementById(btnIds[m]); if(!el) return;
+    if (m===metric) el.classList.add('active'); else el.classList.remove('active');
+  });
+  render();
+}
+
+/* -------- SINGLE-DAY Head summary -------- */
+function calcHeadSummary(head, dateISO){
+  const rows = DB.cafes.filter(r => lc(r.trainerHead) === lc(head));
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const r of rows){
+    const kv = getMetricValue(r, dateISO, 'kpt');    if (kv!=null){ kSum+=kv; kCnt++; }
+    const dv = getMetricValue(r, dateISO, 'defect'); if (dv!=null){ dSum+=dv; dCnt++; }
+    const rv = getMetricValue(r, dateISO, 'rating'); if (rv!=null){ rSum+=rv; rCnt++; }
+  }
+  return { kpt: kCnt? kSum/kCnt : '', defect: dCnt? dSum/dCnt : '', rating: rCnt? rSum/rCnt : '' };
+}
+function updateHeadSummary(){
+  const box = document.getElementById('headSummary');
+  if (!box) return;
+  if (!current.head){ box.style.display='none'; return; }
+  document.getElementById('headName').textContent = current.head;
+  const avg = calcHeadSummary(current.head, current.date);
+  document.getElementById('hAvgKpt').textContent = fmtNum(avg.kpt);
+  document.getElementById('hAvgDef').textContent = fmtPct(avg.defect);
+  document.getElementById('hAvgRat').textContent = fmtNum(avg.rating);
+  box.style.display = 'block';
+}
+
+/* -------- RANGE HELPERS -------- */
+function datesBetweenInclusive(fromISO, toISO){
+  if (!fromISO || !toISO) return [];
+  const ds = (DB.dates||[]).filter(d => d>=fromISO && d<=toISO).sort();
+  return ds;
+}
+function hasValidRange(){ return !!(current.from && current.to && current.from <= current.to); }
+
+/* Café range avg */
+function rangeAvgCafe(cafe, fromISO, toISO){
+  const row = DB.cafes.find(x => x.cafe === cafe);
+  if (!row || !row.metrics) return {kpt:'', defect:'', rating:'', n:0};
+  const days = datesBetweenInclusive(fromISO, toISO);
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const d of days){
+    const m = row.metrics[d]; if (!m) continue;
+    const k = (m.kpt===''||m.kpt==null||isNaN(m.kpt))?null:Number(m.kpt);
+    const df= (m.defect===''||m.defect==null||isNaN(m.defect))?null:Number(m.defect);
+    const rt= (m.rating===''||m.rating==null||isNaN(m.rating))?null:Number(m.rating);
+    if (k!=null){ kSum+=k; kCnt++; }
+    if (df!=null){ dSum+=df; dCnt++; }
+    if (rt!=null){ rSum+=rt; rCnt++; }
+  }
+  return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
+}
+
+/* Trainer (location-based from backend) — CITY wise */
+function rangeAvgTrainer(trainer, fromISO, toISO){
+  const trainerLocs = DB.trainerLocs || {};
+  const locMetrics  = DB.locMetrics  || {};
+  const cities = trainerLocs[lc(trainer)] || [];
+  if (!cities.length) return {kpt:'', defect:'', rating:'', n:0};
+  const days = datesBetweenInclusive(fromISO, toISO);
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const city of cities){
+    const perCity = locMetrics[city] || {};
+    for (const d of days){
+      const m = perCity[d]; if (!m) continue;
+      const k =(m.kpt===''||m.kpt==null||isNaN(m.kpt))?null:Number(m.kpt);
+      const df=(m.defect===''||m.defect==null||isNaN(m.defect))?null:Number(m.defect);
+      const rt=(m.rating===''||m.rating==null||isNaN(m.rating))?null:Number(m.rating);
+      if (k!=null){ kSum+=k; kCnt++; }
+      if (df!=null){ dSum+=df; dCnt++; }
+      if (rt!=null){ rSum+=rt; rCnt++; }
+    }
+  }
+  return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
+}
+
+/* Trainer (café-based aggregation) — CAFE wise */
+function rangeAvgTrainerCafeWise(trainer, fromISO, toISO){
+  const rows = DB.cafes.filter(r => lc(r.cityTrainer) === lc(trainer));
+  const days = datesBetweenInclusive(fromISO, toISO);
+  if (!rows.length || !days.length) return {kpt:'', defect:'', rating:'', n:0};
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const r of rows){
+    for (const d of days){
+      const m = (r.metrics||{})[d]; if (!m) continue;
+      if (m.kpt!=='' && m.kpt!=null && !isNaN(m.kpt)){ kSum+=Number(m.kpt); kCnt++; }
+      if (m.defect!=='' && m.defect!=null && !isNaN(m.defect)){ dSum+=Number(m.defect); dCnt++; }
+      if (m.rating!=='' && m.rating!=null && !isNaN(m.rating)){ rSum+=Number(m.rating); rCnt++; }
+    }
+  }
+  return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
+}
+
+/* Trainer Head (location-based) — CITY wise */
+function rangeAvgHead(head, fromISO, toISO){
+  const headLocs = DB.headLocs || {};
+  const locMetrics = DB.locMetrics || {};
+  const cities = headLocs[lc(head)] || [];
+  if (!cities.length) return {kpt:'', defect:'', rating:'', n:0};
+  const days = datesBetweenInclusive(fromISO, toISO);
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const city of cities){
+    const perCity = locMetrics[city] || {};
+    for (const d of days){
+      const m = perCity[d]; if (!m) continue;
+      const k=(m.kpt===''||m.kpt==null||isNaN(m.kpt))?null:Number(m.kpt);
+      const df=(m.defect===''||m.defect==null||isNaN(m.defect))?null:Number(m.defect);
+      const rt=(m.rating===''||m.rating==null||isNaN(m.rating))?null:Number(m.rating);
+      if (k!=null){ kSum+=k; kCnt++; }
+      if (df!=null){ dSum+=df; dCnt++; }
+      if (rt!=null){ rSum+=rt; rCnt++; }
+    }
+  }
+  return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
+}
+
+/* Trainer Head (café-based aggregation) — CAFE wise */
+function rangeAvgHeadCafeWise(head, fromISO, toISO){
+  const rows = DB.cafes.filter(r => lc(r.trainerHead) === lc(head));
+  const days = datesBetweenInclusive(fromISO, toISO);
+  if (!rows.length || !days.length) return {kpt:'', defect:'', rating:'', n:0};
+  let kSum=0,kCnt=0,dSum=0,dCnt=0,rSum=0,rCnt=0;
+  for (const r of rows){
+    for (const d of days){
+      const m = (r.metrics||{})[d]; if (!m) continue;
+      if (m.kpt!=='' && m.kpt!=null && !isNaN(m.kpt)){ kSum+=Number(m.kpt); kCnt++; }
+      if (m.defect!=='' && m.defect!=null && !isNaN(m.defect)){ dSum+=Number(m.defect); dCnt++; }
+      if (m.rating!=='' && m.rating!=null && !isNaN(m.rating)){ rSum+=Number(m.rating); rCnt++; }
+    }
+  }
+  return { kpt: kCnt? kSum/kCnt:'', defect: dCnt? dSum/dCnt:'', rating: rCnt? rSum/rCnt:'', n: Math.max(kCnt,dCnt,rCnt) };
+}
+
+/* Toggle button visibility helper */
+function updateToggleVisibility(){
+  const btn = document.getElementById('toggleViewBtn');
+  const show = hasValidRange() && !current.cafe && (current.trainer || current.head);
+  btn.style.display = show ? 'inline-block' : 'none';
+}
+
+/* Update the Range Averages panel */
+function updateRangeBox(){
+  const box = document.getElementById('rangeBox');
+  const none = document.getElementById('rangeNone');
+  const titleEl = document.getElementById('rangeTitle');
+  const toggleBtn = document.getElementById('toggleViewBtn');
+
+  if (!hasValidRange()){
+    box.style.display='block';
+    titleEl.childNodes[0].nodeValue = 'Range Averages';
+    none.style.display='block';
+    document.getElementById('rKpt').textContent='—';
+    document.getElementById('rDef').textContent='—';
+    document.getElementById('rRat').textContent='—';
+    updateToggleVisibility();
+    return;
+  }
+
+  let res=null, label='Range Averages';
+
+  if (current.cafe){
+    res = rangeAvgCafe(current.cafe, current.from, current.to);
+    label = `Café Range — ${current.cafe}`;
+    toggleBtn.style.display = 'none';
+  } else if (current.trainer){
+    if (rangeViewMode==='city'){
+      res = rangeAvgTrainer(current.trainer, current.from, current.to);
+      label = `Trainer Range — ${current.trainer} (City wise view)`;
+      toggleBtn.textContent = 'Switch to Café wise';
+    } else {
+      res = rangeAvgTrainerCafeWise(current.trainer, current.from, current.to);
+      label = `Trainer Range — ${current.trainer} (Café wise view)`;
+      toggleBtn.textContent = 'Switch to City wise';
+    }
+  } else if (current.head){
+    if (rangeViewMode==='city'){
+      res = rangeAvgHead(current.head, current.from, current.to);
+      label = `Trainer Head Range — ${current.head} (City wise view)`;
+      toggleBtn.textContent = 'Switch to Café wise';
+    } else {
+      res = rangeAvgHeadCafeWise(current.head, current.from, current.to);
+      label = `Trainer Head Range — ${current.head} (Café wise view)`;
+      toggleBtn.textContent = 'Switch to City wise';
+    }
+  }
+
+  if (!res || !res.n){
+    box.style.display='block';
+    titleEl.childNodes[0].nodeValue = label;
+    none.style.display='block';
+    document.getElementById('rKpt').textContent='—';
+    document.getElementById('rDef').textContent='—';
+    document.getElementById('rRat').textContent='—';
+    updateToggleVisibility();
+    return;
+  }
+
+  titleEl.childNodes[0].nodeValue = `${label} (${ymdToNice(current.from)} → ${ymdToNice(current.to)})`;
+  document.getElementById('rKpt').textContent = fmtNum(res.kpt);
+  document.getElementById('rDef').textContent = fmtPct(res.defect);
+  document.getElementById('rRat').textContent = fmtNum(res.rating);
+  none.style.display='none';
+  box.style.display='block';
+  updateToggleVisibility();
+}
+
+/* -------- Food emoji spinner -------- */
+const FOOD_SETS=[["🥐","🍓","🍕"],["🍔","🥗","🍟"],["🍜","🍣","🍤"],["🥯","☕️","🧁"],["🌮","🥑","🌯"],["🍎","🍊","🍇"],["🥙","🍗","🥒"],["🧀","🍞","🍅"],["🥞","🍯","🫐"]];
+let foodTimer=null,lastSetIdx=-1;
+function startFoodSpin(){ changeFood(); foodTimer=setInterval(changeFood,600); }
+function changeFood(){ const orbit=document.getElementById('orbit'); let idx=Math.floor(Math.random()*FOOD_SETS.length); if(idx===lastSetIdx) idx=(idx+1)%FOOD_SETS.length; lastSetIdx=idx; const [a,b,c]=FOOD_SETS[idx]; orbit.innerHTML=`<div class="emoji e1">${a}</div><div class="emoji e2">${b}</div><div class="emoji e3">${c}</div>`; }
+function stopFoodSpin(){ if(foodTimer){clearInterval(changeFood); clearInterval(foodTimer); foodTimer=null;} }
+
+const MIN_SPIN = 90;
+let spinStart = 0;
+function setBusy(on){
+  const ld=document.getElementById('loader');
+  const grid=document.getElementById('grid');
+  const empty=document.getElementById('empty');
+  const overlay=document.getElementById('centerBusy');
+  if(on){
+    spinStart=Date.now(); overlay.style.display='flex'; startFoodSpin();
+    ld.style.display='grid'; grid.style.display='none'; empty.style.display='none';
+  } else {
+    const stay=Math.max(0,MIN_SPIN-(Date.now()-spinStart));
+    setTimeout(()=>{ overlay.style.display='none'; stopFoodSpin(); ld.style.display='none'; }, stay);
+  }
+}
+
+/* Filters */
+function populateFilters(){
+  TRAINER_CANON = new Map();
+  for (const r of DB.cafes){
+    const raw = (r.cityTrainer||'').toString().trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    if (!TRAINER_CANON.has(key)) TRAINER_CANON.set(key, raw);
+  }
+  const trainers = Array.from(TRAINER_CANON.values()).sort((a,b)=>a.localeCompare(b));
+  const tSel=document.getElementById('trainerSel');
+  tSel.innerHTML='<option value="">All Trainers</option>'+trainers.map(t=>`<option>${t}</option>`).join('');
+
+  HEAD_CANON = new Map();
+  for (const r of DB.cafes){
+    const raw = (r.trainerHead||'').toString().trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase();
+    if (!HEAD_CANON.has(key)) HEAD_CANON.set(key, raw);
+  }
+  const heads = Array.from(HEAD_CANON.values()).sort((a,b)=>a.localeCompare(b));
+  const hSel=document.getElementById('headSel');
+  hSel.innerHTML='<option value="">All Trainer Heads</option>'+heads.map(h=>`<option>${h}</option>`).join('');
+  if (current.head && heads.includes(current.head)) hSel.value = current.head;
+
+  const cSel=document.getElementById('cafeSel');
+  cSel.innerHTML='<option value="">All Cafes</option>'+DB.cafeNames.map(c=>`<option>${c}</option>`).join('');
+
+  const dSel=document.getElementById('dateSel');
+  const ds=[...DB.dates].filter(Boolean).sort().reverse();
+  dSel.innerHTML=ds.map((d,i)=>`<option value="${d}" ${i===0?'selected':''}>${ymdToNice(d)}</option>`).join('');
+  current.date=ds[0]||'';
+
+  const minDate = ds.length ? ds[ds.length-1] : '';
+  const maxDate = ds.length ? ds[0] : '';
+  const fromInp = document.getElementById('fromDate');
+  const toInp = document.getElementById('toDate');
+  fromInp.min = minDate; fromInp.max = maxDate;
+  toInp.min = minDate;   toInp.max = maxDate;
+
+  // Subcategories will be populated by boot() now.
+  // Ratings map also seeded by boot(), then future changes use fetchRatingsThenRender().
+}
+
+function applyCrossFiltering(){
+  const tSel=document.getElementById('trainerSel');
+  const cSel=document.getElementById('cafeSel');
+  const hSel=document.getElementById('headSel');
+
+  if (current.cafe){
+    const row=DB.cafes.find(r=>r.cafe===current.cafe);
+    if(row){
+      const tCanon = TRAINER_CANON.get(lc(row.cityTrainer)) || row.cityTrainer || '';
+      const hCanon = HEAD_CANON.get(lc(row.trainerHead)) || row.trainerHead || '';
+      current.trainer = tCanon;
+      current.head    = hCanon;
+      if (tSel) tSel.value = tCanon || '';
+      if (hSel) hSel.value = hCanon || '';
+    }
+  }
+
+  let base = DB.cafes.slice();
+
+  if(current.head){ base = base.filter(r=>lc(r.trainerHead)===lc(current.head)); }
+
+  const trainersUnder = Array.from(new Set(base.map(r=>r.cityTrainer).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+  if (tSel){
+    tSel.innerHTML = '<option value="">All Trainers</option>' + trainersUnder.map(t=>`<option ${t===current.trainer?'selected':''}>${t}</option>`).join('');
+    if(current.trainer && !trainersUnder.includes(current.trainer)){
+      current.trainer=''; tSel.value='';
+    }
+  }
+
+  let rows = base;
+  if(current.trainer){ rows = rows.filter(r=>lc(r.cityTrainer)===lc(current.trainer)); }
+
+  const cafesAvail = Array.from(new Set(rows.map(r=>r.cafe))).sort();
+  if (cSel){
+    cSel.innerHTML = '<option value="">All Cafes</option>' + cafesAvail.map(c=>`<option ${c===current.cafe?'selected':''}>${c}</option>`).join('');
+    if(current.cafe && !cafesAvail.includes(current.cafe)){
+      current.cafe=''; cSel.value='';
+    }
+  }
+
+  let head='—', city='—';
+  if(current.cafe){
+    const row=DB.cafes.find(r=>r.cafe===current.cafe);
+    if(row){ head=row.trainerHead||'—'; city=row.cityTrainer||'—'; }
+  }else{
+    if(current.head) head=current.head;
+    if(current.trainer) city=current.trainer;
+    if(!current.head && current.trainer){
+      const heads=new Set(DB.cafes.filter(r=>lc(r.cityTrainer)===lc(current.trainer)).map(r=>r.trainerHead).filter(Boolean));
+      if(heads.size===1) head=[...heads][0];
+    }
+  }
+  document.getElementById('selHead').textContent='Trainer Head: '+head;
+  document.getElementById('selCity').textContent=city;
+
+  updateClearXs();
+  updateRangeBox();
+}
+
+function ratingsKey(){ return `${current.date}|${current.ratingSub||'All'}`; }
+function fetchRatingsThenRender(useSpinner){
+  const key = ratingsKey();
+  const memo = ratingsMemo.get(key);
+  if (memo) { ratingMap = memo; render(); return; }
+  if (useSpinner) setBusy(true);
+  google.script.run.withSuccessHandler(res=>{
+    ratingMap = (res && res.map) ? res.map : {};
+    ratingsMemo.set(key, ratingMap);
+    render();
+  }).withFailureHandler(_=>{ ratingMap = {}; render(); }).getRatingsByDateAndSubcategory(current.date, current.ratingSub);
+}
+
+function updateClearXs(){
+  const show = (btn, cond)=>{ if(!btn) return; btn.style.display = cond ? 'inline-flex' : 'none'; };
+  show(document.getElementById('clearHeadBtn'), !!current.head);
+  show(document.getElementById('clearTrainerBtn'), !!current.trainer);
+  show(document.getElementById('clearCafeBtn'), !!current.cafe);
+  const ds=[...DB.dates].filter(Boolean).sort().reverse();
+  const latest = ds[0] || '';
+  show(document.getElementById('clearDateBtn'), !!current.date && current.date !== latest);
+  show(document.getElementById('clearRatingBtn'), (current.ratingSub||'All') !== 'All');
+}
+
+function render(){
+  const grid=document.getElementById('grid');
+  const empty=document.getElementById('empty');
+
+  let rows=DB.cafes;
+  if (current.head)    rows = rows.filter(r => lc(r.trainerHead) === lc(current.head));
+  if(current.trainer)  rows = rows.filter(r => lc(r.cityTrainer) === lc(current.trainer));
+  if(current.cafe)     rows = rows.filter(r => r.cafe === current.cafe);
+  if(current.query)    rows = rows.filter(r => r.cafe.toLowerCase().includes(current.query));
+
+  if (current.trainer && trainerSubsetKeys){ rows = rows.filter(r => trainerSubsetKeys.has(r.key)); }
+
+  document.getElementById('countBadge').textContent=`${rows.length} results`;
+
+  if (trainerSubsetMode){
+    const metric = trainerSubsetMode;
+    rows.sort((a,b)=>{
+      const va = getMetricValue(a, current.date, metric);
+      const vb = getMetricValue(b, current.date, metric);
+      if (va==null && vb==null) return 0;
+      if (va==null) return 1;
+      if (vb==null) return -1;
+      return (metric==='defect') ? (vb - va) : (metric==='kpt' ? (vb - va) : (va - vb));
+    });
+  } else {
+    rows.sort((a,b)=>a.cafe.localeCompare(b.cafe));
+  }
+
+  updateTrainerSummary();
+  updateHeadSummary();
+  updateRangeBox();
+
+  // Batch DOM updates with a fragment to reduce reflows.
+  const frag = document.createDocumentFragment();
+  const d=current.date;
+  rows.forEach(r=>{
+    const m=(r.metrics && r.metrics[d]) ? r.metrics[d] : {kpt:'',defect:'',rating:''};
+    const overlay=ratingMap[r.key];
+    const ratingVal=(overlay==null? m.rating : overlay);
+
+    const card=document.createElement('div');
+    card.className='card';
+    card.innerHTML=`
+      <h3>${r.cafe||'—'}</h3>
+      <div class="meta">
+        <div>Head: <strong>${r.trainerHead||'—'}</strong></div>
+        <div>City Trainer: <strong>${r.cityTrainer||'—'}</strong></div>
+        <div>Date: <strong>${ymdToNice(d)}</strong></div>
+      </div>
+      <div class="buckets">
+        <div class="bucket" style="background:var(--sky)"><h4>KPT P80</h4><div class="v">${fmtNum(m.kpt)}</div></div>
+        <div class="bucket" style="background:var(--rose)"><h4>Defect</h4><div class="v">${fmtPct(m.defect)}</div></div>
+        <div class="bucket" style="background:var(--mint)"><h4>Rating</h4><div class="v">${fmtNum(ratingVal)}</div></div>
+      </div>`;
+    frag.appendChild(card);
+  });
+
+  if(!rows.length){
+    grid.style.display='none'; empty.style.display='block'; grid.innerHTML=''; setBusy(false); updateClearXs(); return;
+  }
+  empty.style.display='none'; grid.style.display='grid';
+  grid.innerHTML='';            // clear once
+  grid.appendChild(frag);       // append once
+  setBusy(false);
+  updateClearXs();
+}
+
+/* Events */
+function initEvents(){
+  document.getElementById('headSel').addEventListener('change',e=>{
+    current.head=e.target.value||'';
+    setBusy(true);
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+
+  document.getElementById('trainerSel').addEventListener('change',e=>{
+    current.trainer=e.target.value||''; setBusy(true);
+    trainerSubsetMode = null; trainerSubsetKeys = null;
+    ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+
+  document.getElementById('cafeSel').addEventListener('change',e=>{
+    current.cafe=e.target.value||''; setBusy(true);
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+
+  document.getElementById('dateSel').addEventListener('change',e=>{
+    current.date=e.target.value||''; fetchRatingsThenRender(true);
+  });
+
+  document.getElementById('ratingSubSel').addEventListener('change',e=>{
+    current.ratingSub=e.target.value||'All'; fetchRatingsThenRender(true);
+  });
+
+  document.getElementById('searchInp').addEventListener('input',e=>{
+    current.query=(e.target.value||'').trim().toLowerCase();
+    clearTimeout(window.__deb); window.__deb=setTimeout(()=>requestAnimationFrame(render),120);
+  });
+
+  document.getElementById('fromDate').addEventListener('change',e=>{
+    current.from = e.target.value || '';
+    const toInp = document.getElementById('toDate');
+    if (current.from){ toInp.min = current.from; }
+    updateRangeBox();
+  });
+  document.getElementById('toDate').addEventListener('change',e=>{
+    current.to = e.target.value || '';
+    const fromInp = document.getElementById('fromDate');
+    if (current.to){ fromInp.max = current.to; }
+    updateRangeBox();
+  });
+
+  document.getElementById('clearHeadBtn').addEventListener('click', ()=>{
+    const hSel=document.getElementById('headSel');
+    current.head=''; hSel.value='';
+    setBusy(true);
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+  document.getElementById('clearTrainerBtn').addEventListener('click', ()=>{
+    const tSel=document.getElementById('trainerSel');
+    current.trainer=''; tSel.value='';
+    setBusy(true);
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+  document.getElementById('clearCafeBtn').addEventListener('click', ()=>{
+    const cSel=document.getElementById('cafeSel');
+    current.cafe=''; cSel.value='';
+    setBusy(true);
+    requestAnimationFrame(()=>{ applyCrossFiltering(); render(); });
+  });
+  document.getElementById('clearDateBtn').addEventListener('click', ()=>{
+    const ds=[...DB.dates].filter(Boolean).sort().reverse();
+    const latest = ds[0] || '';
+    if (!latest) return;
+    const dSel=document.getElementById('dateSel');
+    current.date=latest; dSel.value=latest;
+    fetchRatingsThenRender(true);
+  });
+  document.getElementById('clearRatingBtn').addEventListener('click', ()=>{
+    const rSel=document.getElementById('ratingSubSel');
+    current.ratingSub='All'; rSel.value='All';
+    fetchRatingsThenRender(true);
+  });
+
+  const b1=document.getElementById('btnBottomKPT');
+  const b2=document.getElementById('btnHighDefect');
+  const b3=document.getElementById('btnBottomRating');
+  if (b1) b1.addEventListener('click', ()=>applySubsetToggle('kpt'));
+  if (b2) b2.addEventListener('click', ()=>applySubsetToggle('defect'));
+  if (b3) b3.addEventListener('click', ()=>applySubsetToggle('rating'));
+
+  // Toggle City↔Café for trainer/head range
+  document.getElementById('toggleViewBtn').addEventListener('click', ()=>{
+    rangeViewMode = (rangeViewMode === 'city') ? 'cafe' : 'city';
+    updateRangeBox();
+  });
+}
+
+function initNewButtons(){
+  const stampEl = document.getElementById('dataStamp');
+  stampEl.textContent = 'Loaded at ' + formatStamp(new Date());
+
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    const ds=[...DB.dates].filter(Boolean).sort().reverse();
+    current.head=''; current.trainer=''; current.cafe=''; current.query=''; current.ratingSub='All';
+    current.date = ds[0] || current.date || '';
+    current.from=''; current.to='';
+    document.getElementById('headSel').value='';
+    document.getElementById('trainerSel').value='';
+    document.getElementById('cafeSel').value='';
+    document.getElementById('searchInp').value='';
+    document.getElementById('ratingSubSel').value='All';
+    const dSel=document.getElementById('dateSel');
+    dSel.value=current.date || (dSel.options[0] && dSel.options[0].value) || '';
+    document.getElementById('fromDate').value='';
+    document.getElementById('toDate').value='';
+    trainerSubsetMode = null; trainerSubsetKeys = null;
+    rangeViewMode = 'city';
+    ['btnBottomKPT','btnHighDefect','btnBottomRating'].forEach(id=>{ const el=document.getElementById(id); if(el) el.classList.remove('active'); });
+    setBusy(true);
+    applyCrossFiltering();
+    fetchRatingsThenRender(true);
+  });
+}
+
+/* -------- Boot (single server call) -------- */
+function boot(){
+  setBusy(true);
+  pickAndType();
+
+  google.script.run.withSuccessHandler(res=>{
+    DB = res.db || { dates:[], cafes:[], trainers:[], trainerHeads:[], cafeNames:[], locMetrics:{}, headLocs:{}, trainerLocs:{} };
+
+    const ds = (DB.dates||[]).filter(Boolean).sort().reverse();
+    current.date = res.defaultDate || ds[0] || '';
+
+    // Populate rating subcategories from boot payload (no extra call)
+    const rSel = document.getElementById('ratingSubSel');
+    rSel.innerHTML = (res.subcats||['All']).map(s => `<option ${s==='All'?'selected':''}>${s}</option>`).join('');
+    current.ratingSub = 'All';
+
+    // Seed ratings cache for the default date so first render doesn't call again
+    if (res.ratings && res.ratings.map){
+      ratingMap = res.ratings.map;
+      ratingsMemo.set(`${current.date}|All`, ratingMap);
+    }
+
+    populateFilters();
+    applyCrossFiltering();
+    updateClearXs();
+    updateTrainerSummary();
+    requestAnimationFrame(render); // first render & hide spinner
+  }).withFailureHandler(err=>{
+    const ld=document.getElementById('loader'); ld.style.display='grid';
+    ld.innerHTML=`<div class="sk" style="grid-column:span 3;display:flex;align-items:center;justify-content:center;background:none;box-shadow:none;color:#b00">
+      Error: ${err.message}
+    </div>`;
+    setBusy(false);
+  }).bootPayload(); // ✅ ONE call only
+}
+
+window.onload=()=>{ initEvents(); initNewButtons(); boot(); };
 </script>
-
 </body>
-
 </html>
